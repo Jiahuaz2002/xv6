@@ -88,6 +88,7 @@ main(int argc, char *argv[])
       close(2);
       dup(fds[1]);
       char *newargv[] = { "attack", 0 };
+      printf("before exec proc page:%ld\n",((uint64)sbrk(0)-1)/4096+1);
       exec(newargv[0], newargv);
       printf("exec %s failed\n", newargv[0]);
       exit(1);
