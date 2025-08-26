@@ -10,7 +10,7 @@
 #include "defs.h"
 
 void freerange(void *pa_start, void *pa_end);
-
+void spfreerange(void *pa_start, void *pa_end);
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
 
@@ -21,13 +21,25 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+} kmem,kspmem;//lab3-4
+
 
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
-  freerange(end, (void*)PHYSTOP);
+  initlock(&kspmem.lock,"kspmem");
+  spfreerange(end,end+SPGNUM*SPGSIZE);
+  freerange(end+SPGNUM+SPGSIZE, (void*)PHYSTOP);
+}
+//lab3-4
+void spfreerange(void *pa_start, void *pa_end){
+  char* p;
+  p=(char*)SPGROUNDUP((uint64)pa_start);
+  for(;p+SPGSIZE<=(char*)pa_end;p+=SPGSIZE){
+    superfree(p);
+  }
+
 }
 
 void
@@ -62,6 +74,22 @@ kfree(void *pa)
   release(&kmem.lock);
 }
 
+void superfree(void*pa){
+  struct run* r;
+  if(((uint64)pa % SPGSIZE) != 0 || (char*)pa < end || (uint64)pa >= end+SPGSIZE*SPGNUM)
+    panic("superfree");
+  memset(pa, 1, SPGSIZE);
+  r = (struct run*)pa;
+  acquire(&kspmem.lock);
+  r->next = kspmem.freelist;
+  kspmem.freelist = r;
+  release(&kspmem.lock);
+}
+
+
+
+
+
 // Allocate one 4096-byte page of physical memory.
 // Returns a pointer that the kernel can use.
 // Returns 0 if the memory cannot be allocated.
@@ -79,4 +107,19 @@ kalloc(void)
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+//lab3-4
+void*
+superalloc(void){
+  struct run*r;
+  acquire(&kspmem.lock);
+  r = kspmem.freelist;
+  if(r)
+    kspmem.freelist = r->next;
+  release(&kspmem.lock);
+
+  if(r)
+    memset((char*)r, 5, SPGSIZE); // fill with junk
+  return (void*)r; 
 }

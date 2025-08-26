@@ -345,6 +345,7 @@ r_ra()
   asm volatile("mv %0, ra" : "=r" (x) );
   return x;
 }
+ 
 
 // flush the TLB.
 static inline void
@@ -359,6 +360,9 @@ typedef uint64 *pagetable_t; // 512 PTEs
 
 #endif // __ASSEMBLER__
 
+
+#define SPGSIZE (1L<<21)//lab3-4
+#define SPGNUM 4
 #define PGSIZE 4096 // bytes per page
 #define PGSHIFT 12  // bits of offset within a page
 
@@ -368,6 +372,7 @@ typedef uint64 *pagetable_t; // 512 PTEs
 #endif
 
 #define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))
+#define SPGROUNDUP(sz) (((sz)+SPGSIZE-1) & ~(SPGSIZE-1))
 #define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))
 
 #define PTE_V (1L << 0) // valid
@@ -375,6 +380,8 @@ typedef uint64 *pagetable_t; // 512 PTEs
 #define PTE_W (1L << 2)
 #define PTE_X (1L << 3)
 #define PTE_U (1L << 4) // user can access
+#define PTE_S (1L << 8)
+
 
 
 
