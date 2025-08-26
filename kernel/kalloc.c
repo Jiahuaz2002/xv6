@@ -11,6 +11,8 @@
 
 void freerange(void *pa_start, void *pa_end);
 void spfreerange(void *pa_start, void *pa_end);
+void superfree(void*pa);
+void* superalloc(void);
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
 
@@ -76,7 +78,7 @@ kfree(void *pa)
 
 void superfree(void*pa){
   struct run* r;
-  if(((uint64)pa % SPGSIZE) != 0 || (char*)pa < end || (uint64)pa >= end+SPGSIZE*SPGNUM)
+  if(((uint64)pa % SPGSIZE) != 0 || (char*)pa < end || (uint64)pa >= (uint64)(end+SPGSIZE*SPGNUM))
     panic("superfree");
   memset(pa, 1, SPGSIZE);
   r = (struct run*)pa;
