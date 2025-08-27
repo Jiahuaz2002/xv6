@@ -323,8 +323,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
   oldsz = PGROUNDUP(oldsz);
   for(a = oldsz; a < newsz; a += sz){
     sz = PGSIZE;
-    if(((a&((1<<21)-1))==0)&&newsz-a>=SPGSIZE){//lab3-4
-      mem=superalloc();
+    if(((a&((1<<21)-1))==0)&&newsz-a>=SPGSIZE&&(mem=superalloc())!=0){//lab3-4
       sz=SPGSIZE;
     }
     else mem = kalloc();
@@ -582,8 +581,7 @@ void vmp(pagetable_t pagetable,int level){
       uint64 pa = PTE2PA(pte);
       if(level==2) printf(".. .. ");
       if(level==1) printf(".. ");
-      if(pte&PTE_S) printf("..%p: pte %p pa %p\n",(void*)((i<<12)<<(level==0?18:(level==1?9:0))),(void*)pte,(void*)PTE2PA(pte));
-      else printf("..%p: pte %p pa %p\n",(void*)((i<<12)<<(level==0?18:(level==1?9:0))),(void*)pte,(void*)pa);
+      printf("..%p: pte %p pa %p\n",(void*)((i<<12)<<(level==0?18:(level==1?9:0))),(void*)pte,(void*)pa);
       vmp((pagetable_t)pa,level+1);
     }
   }
