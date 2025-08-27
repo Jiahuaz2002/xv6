@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+int sys_kpgtbl(void);
 
 uint64
 sys_exit(void)
@@ -45,6 +46,7 @@ sys_sbrk(void)
   addr = myproc()->sz;
   if(growproc(n) < 0)
     return -1;
+  //sys_kpgtbl();
   return addr;
 }
 

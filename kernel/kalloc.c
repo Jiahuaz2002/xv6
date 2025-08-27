@@ -31,8 +31,9 @@ kinit()
 {
   initlock(&kmem.lock, "kmem");
   initlock(&kspmem.lock,"kspmem");
-  spfreerange(end,end+SPGNUM*SPGSIZE);
-  freerange(end+SPGNUM+SPGSIZE, (void*)PHYSTOP);
+  freerange(end, (void*)(PHYSTOP-SPGNUM*SPGSIZE));
+  spfreerange((void*)(PHYSTOP-SPGNUM*SPGSIZE),(void*)PHYSTOP);
+  
 }
 //lab3-4
 void spfreerange(void *pa_start, void *pa_end){
@@ -78,7 +79,7 @@ kfree(void *pa)
 
 void superfree(void*pa){
   struct run* r;
-  if(((uint64)pa % SPGSIZE) != 0 || (char*)pa < end || (uint64)pa >= (uint64)(end+SPGSIZE*SPGNUM))
+  if(((uint64)pa % SPGSIZE) != 0 || (char*)pa < (char*)(PHYSTOP-SPGNUM*SPGSIZE) || (uint64)pa >= (uint64)(PHYSTOP))
     panic("superfree");
   memset(pa, 1, SPGSIZE);
   r = (struct run*)pa;

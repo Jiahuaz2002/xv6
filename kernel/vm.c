@@ -209,7 +209,12 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
       return -1;
     if(*pte & PTE_V)
       panic("mappages: remap");
-    if(isSuper) *pte=SPA2PTE(pa)|perm|PTE_V;
+    if(isSuper) {
+      *pte=SPA2PTE(pa)|perm|PTE_V;
+      for(int i=1;i<512;++i){
+        *(pte+i)=*(pte);
+      }
+    }
     else *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -230,12 +235,14 @@ void demote(pagetable_t pagetable,uint64 va){//va是虚拟基址
     
     if((*pte & PTE_V) == 0) {
       printf("va=%ld pte=%ld\n", a, *pte);
-      panic("uvmunmap: not mapped");
+      panic("demote: not mapped");
     }
     if(PTE_FLAGS(*pte) == PTE_V)
-      panic("uvmunmap: not a leaf");
+      panic("demote: not a leaf");
     
-    *pte=*pte|(a-va);
+    uint64 addr=PTE2SPA(*pte);
+    addr|=a-va;
+    *pte=((addr>>12)<<10)|PTE_FLAGS(*pte);
     *pte=*pte&~(1ll<<8);//get rid of PTE_S
   }
 
@@ -321,7 +328,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
   oldsz = PGROUNDUP(oldsz);
   for(a = oldsz; a < newsz; a += sz){
     sz = PGSIZE;
-    if(((oldsz&((1<<21)-1))==0)&&newsz-oldsz>=SPGSIZE){//lab3-4
+    if(((a&((1<<21)-1))==0)&&newsz-a>=SPGSIZE){//lab3-4
       mem=superalloc();
       sz=SPGSIZE;
     }
@@ -572,7 +579,8 @@ void vmp(pagetable_t pagetable,int level){
       uint64 pa = PTE2PA(pte);
       if(level==2) printf(".. .. ");
       if(level==1) printf(".. ");
-      printf("..%p: pte %p pa %p\n",(void*)((i<<12)<<(level==0?30:(level==1?21:12))),(void*)pte,(void*)pa);
+      if(pte&PTE_S) printf("..%p: pte %p pa %p\n",(void*)((i<<12)<<(level==0?18:(level==1?9:0))),(void*)pte,(void*)PTE2SPA(pte));
+      else printf("..%p: pte %p pa %p\n",(void*)((i<<12)<<(level==0?18:(level==1?9:0))),(void*)pte,(void*)pa);
       vmp((pagetable_t)pa,level+1);
     }
   }
