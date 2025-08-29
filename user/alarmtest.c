@@ -45,7 +45,7 @@ periodic()
 void
 test0()
 {
-  int i;
+int i;
   printf("test0 start\n");
   count = 0;
   sigalarm(2, periodic);

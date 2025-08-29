@@ -176,3 +176,17 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+
+
+void bt(uint64 s0){
+  if(s0==PGROUNDDOWN(s0)) return;
+  printf("%p\n",(void*)*(uint64*)(s0-8));
+  bt(*(uint64*)(s0-16));
+
+}
+void backtrace(){
+  printf("backtrace:\n");
+  uint64 rp=r_fp();
+  bt(rp);
+  return ;
+}
