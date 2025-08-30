@@ -10,6 +10,8 @@
  * the kernel's page table.
  */
 pagetable_t kernel_pagetable;
+extern struct spinlock bklock;
+extern short bookeeping[];
 
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
@@ -85,8 +87,9 @@ kvminithart()
 pte_t *
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
-  if(va >= MAXVA)
+  if(va >= MAXVA){
     panic("walk");
+  }
 
   for(int level = 2; level > 0; level--) {
     pte_t *pte = &pagetable[PX(level, va)];
@@ -193,6 +196,14 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     if(do_free){
       uint64 pa = PTE2PA(*pte);
       kfree((void*)pa);
+    }
+    else 
+    {
+      acquire(&bklock);
+      if(bookeeping[refIdx(PTE2PA(*pte))]>0) 
+        --bookeeping[refIdx(PTE2PA(*pte))];
+      release(&bklock);
+      
     }
     *pte = 0;
   }
@@ -315,22 +326,33 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+
+    int f=(*pte)&PTE_W;//flag!=0:writtable
+    *pte=DISABLEW(*pte);
     pa = PTE2PA(*pte);
+
+    if(f!=0) *pte=ENABLEC(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    //if((mem = kalloc()) == 0) 
+    //  goto err;
+    //memmove(mem, (char*)pa, PGSIZE);
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
+      //kfree(mem);
+      panic("uvmcopy:mappages error");
+      if(f!=0) *pte=ENABLEW(*pte);
+      *pte=DISABLEC(*pte);
       goto err;
     }
+    acquire(&bklock);
+    ++bookeeping[refIdx(pa)];
+    release(&bklock);
+  
   }
   return 0;
 
@@ -366,9 +388,37 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     if(va0 >= MAXVA)
       return -1;
     pte = walk(pagetable, va0, 0);
-    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
-       (*pte & PTE_W) == 0)
+    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 )
       return -1;
+
+
+    if((*pte & PTE_W) == 0){
+      if((*pte&PTE_C)==0) return -1;
+      uint64 pa=PTE2PA(*pte);
+      acquire(&bklock);
+      if(bookeeping[refIdx(pa)]==0){
+        *pte=ENABLEW(*pte);
+        *pte=DISABLEC(*pte);
+        release(&bklock);
+      }
+      else{
+        char* mem=0;
+        uint flags=PTE_FLAGS(*pte);
+        flags=ENABLEW(flags);
+        flags=DISABLEC(flags);
+        if((mem = kalloc()) == 0) 
+          panic("copy out memory full, allocate failed");
+        *pte=DISABLEV(*pte);
+        memmove(mem, (char*)pa, PGSIZE);
+        --bookeeping[refIdx(pa)];
+        release(&bklock);
+        if(mappages(pagetable, PGROUNDDOWN(va0), PGSIZE, (uint64)mem, flags) != 0){
+          panic("copy out mapping failed");
+        
+        pte=walk(pagetable,va0,0);
+        }
+      }
+    }
     pa0 = PTE2PA(*pte);
     n = PGSIZE - (dstva - va0);
     if(n > len)

@@ -6,9 +6,12 @@
 #include "proc.h"
 #include "defs.h"
 
+
 struct spinlock tickslock;
 uint ticks;
 
+extern unsigned short bookeeping[];
+extern struct spinlock bklock;
 extern char trampoline[], uservec[], userret[];
 
 // in kernelvec.S, calls kerneltrap().
@@ -65,7 +68,44 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  } else if(r_scause()==15&&r_stval()<MAXVA){
+    pte_t* pte=walk(p->pagetable,r_stval(),0);
+    uint64 va=r_stval();
+    if(pte&&(*pte)&PTE_C){
+      uint64 pa=PTE2PA(*pte);
+      acquire(&bklock);
+      if(bookeeping[refIdx(pa)]==0){
+        *pte=ENABLEW(*pte);
+        *pte=DISABLEC(*pte);
+        release(&bklock);
+      }
+      else{
+        char* mem=0;
+        uint flags=PTE_FLAGS(*pte);
+        flags=ENABLEW(flags);
+        flags=DISABLEC(flags);
+        *pte=DISABLEV(*pte);
+        if((mem = kalloc()) == 0) 
+          panic("memory full, allocate failed");
+        memmove(mem, (char*)pa, PGSIZE);
+        
+        --bookeeping[refIdx(pa)];
+        release(&bklock);
+        if(mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)mem, flags) != 0){
+          panic("mapping failed");
+        }
+      }
+      p->trapframe->epc=r_sepc();
+
+    }
+    else{
+      printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
+      printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
+      setkilled(p);
+    }
+
+  }
+  else if((which_dev = devintr()) != 0){
     // ok
   } else {
     printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
