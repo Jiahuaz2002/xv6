@@ -1,0 +1,15 @@
+{
+    "files.associations": {
+        "fs.h": "c",
+        "random": "c",
+        "exception": "c",
+        "memory_resource": "c",
+        "iosfwd": "c",
+        "new": "c",
+        "ostream": "c",
+        "sstream": "c",
+        "stop_token": "c",
+        "streambuf": "c",
+        "defs.h": "c"
+    }
+}
